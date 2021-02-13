@@ -4,8 +4,8 @@ from transformers import TFBertForMaskedLM, BertTokenizer
 from utils import tokenize_and_label, train_test_split
 from sklearn.metrics import classification_report
 
-#lm_model = TFBertForMaskedLM.from_pretrained('../SavedModels/DiBERT')
-lm_model = TFBertForMaskedLM.from_pretrained('bert-base-uncased')
+lm_model = TFBertForMaskedLM.from_pretrained('../SavedModels/DiBERT') # For fine tuned bert
+#lm_model = TFBertForMaskedLM.from_pretrained('bert-base-uncased')  For pretrained bert
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 tokenizer.add_tokens(["[STARTQ]", "[ENDQ]", "[URL]"])
 lm_model.resize_token_embeddings(len(tokenizer))
