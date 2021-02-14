@@ -1,7 +1,8 @@
 import numpy as np
 import tensorflow as tf
 from transformers import BertTokenizer, TFBertForMaskedLM
-from utils import mask_token_in_text, make_pretrain_batch, get_custom_MLMmodel
+from utils import get_custom_MLMmodel
+from data_pipeline import make_dataset_for_DiBERT
 import time
 import os
 import sys
@@ -16,37 +17,38 @@ tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 tokenizer.add_tokens(["[STARTQ]", "[ENDQ]", "[URL]"])
 model = get_custom_MLMmodel(len(tokenizer))
 optimizer = tf.keras.optimizers.Adam(2e-5)
-with open('../ETC/markers.txt') as f:
-    marker_list = f.read().split('\n')
-if marker_list[-1]=='':
-    del marker_list[-1]
-with open('../Data/DiBERTdata.txt') as f:
-    lines = f.readlines()
+signature = (tf.TensorSpec([None, None], tf.int32, name="input_ids"),
+             tf.TensorSpec([None, None], tf.int32, name="token_type_ids"), 
+             tf.TensorSpec([None, None], tf.int32, name="attention_mask"),
+             tf.TensorSpec([None, None], tf.int32, name="labels"))
 
-num_steps = len(list(make_pretrain_batch(lines, int(sys.argv[1]))))
-sig_dict = {'input_ids': tf.TensorSpec([None, None], tf.int32, name="input_ids"),
-            'token_type_ids': tf.TensorSpec([None, None], tf.int32, name="token_type_ids"), 
-            'attention_mask': tf.TensorSpec([None, None], tf.int32, name="attention_mask"),
-            'labels': tf.TensorSpec([None, None], tf.int32, name="labels")}
-
-@tf.function(input_signature=[sig_dict])
-def train_fn(inputs):
+@tf.function(input_signature=[signature])
+def train_fn(inp):
+    inputs = {}
+    inputs['input_ids'] = inp[0]
+    inputs['token_type_ids'] = inp[1]
+    inputs['attention_mask'] = inp[2]
+    inputs['labels'] = inp[3]
     with tf.GradientTape() as tape:
         _, logits = model(inputs)
         loss = loss_fn(logits, inputs['labels'], tokenizer.mask_token_id)
     grads = tape.gradient(loss, model.trainable_variables)
     optimizer.apply_gradients(zip(grads, model.trainable_variables))
 
+train_data = make_dataset_for_DiBERT(tokenizer, 
+                                     sys.argv[1], 
+                                     sys.argv[2], 
+                                     int(sys.argv[3]),
+                                     int(sys.argv[4]))
+steps = 100000
 for epoch in range(3):
-    batch_generator = make_pretrain_batch(lines, int(sys.argv[1]))
-    pbar = tf.keras.utils.Progbar(target=num_steps,
+    print('Epoch: {}'.format(epoch))
+    pbar = tf.keras.utils.Progbar(target=steps,
                                   width=15, 
                                   interval=0.005)
-    for i in range(num_steps):
-        lines = next(batch_generator)
-        masked_text = [mask_token_in_text(line, marker_list, tokenizer) for line in lines]
-        inputs = tokenizer(masked_text, return_tensors='tf',padding=True, truncation=True)
-        inputs['labels'] = tokenizer(lines, return_tensors='tf',padding=True, truncation=True)['input_ids']
+    steps = 0
+    for inputs in train_data:
         train_fn(inputs)
         pbar.add(1)
-model.save_pretrained('../SavedModels/DiBERT')
+        steps +=1
+    model.save_pretrained('../SavedModels/DiBERT')
