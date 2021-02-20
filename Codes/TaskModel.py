@@ -12,9 +12,9 @@ def get_transition(num_classes, max_val=0.1, min_val=-0.1, is_padded=False):
     T = np.random.uniform(min_val, max_val, size=(num_classes, num_classes))
     T[0, [2, 4]] = [-100000., -100000.]
     T[1, [0, 1, 3, 4]] = [-100000., -100000., -100000., -100000.]
-    T[2, [4]] = [-100000]
+    T[2, [4]] = [-100000.]
     T[3, [0, 1, 2, 3]] = [-100000., -100000., -100000., -100000.]
-    T[4, [2]] = [-100000]
+    T[4, [2]] = [-100000.]
     if is_padded:
         T[5, :] = [-100000. for _ in range(num_classes)]
         T[[1, 3], 5] = [-100000., -100000.]
